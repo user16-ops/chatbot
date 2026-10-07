@@ -1,13 +1,40 @@
 """API 비용 없이 인용 검증과 검색 의도 보존을 점검합니다."""
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import httpx
 from langchain_core.documents import Document
 from openai import APIConnectionError
 
 import app
+
+
+class APIKeyTests(unittest.TestCase):
+    """실제 API 키를 읽거나 출력하지 않고 키 선택 순서를 확인합니다."""
+
+    def test_local_env_key_has_priority(self):
+        secrets = MagicMock()
+        with patch.object(app, "dotenv_values", return_value={"OPENAI_API_KEY": " local-test-key "}):
+            with patch.object(app.st, "secrets", secrets):
+                self.assertEqual(app.get_api_key(), "local-test-key")
+        secrets.__getitem__.assert_not_called()
+
+    def test_cloud_secrets_key_is_used_without_local_key(self):
+        for local_values in ({}, {"OPENAI_API_KEY": "   "}):
+            with self.subTest(local_values=local_values):
+                with patch.object(app, "dotenv_values", return_value=local_values):
+                    with patch.object(app.st, "secrets", {"OPENAI_API_KEY": " cloud-test-key "}):
+                        self.assertEqual(app.get_api_key(), "cloud-test-key")
+
+    def test_missing_secrets_returns_empty_string(self):
+        for error in (FileNotFoundError, KeyError):
+            with self.subTest(error=error.__name__):
+                secrets = MagicMock()
+                secrets.__getitem__.side_effect = error("테스트용 누락")
+                with patch.object(app, "dotenv_values", return_value={}):
+                    with patch.object(app.st, "secrets", secrets):
+                        self.assertEqual(app.get_api_key(), "")
 
 
 class RAGRegressionTests(unittest.TestCase):
