@@ -90,8 +90,19 @@ class AnswerResult:
 
 
 def get_api_key() -> str:
-    # .env에 기록된 값만 사용합니다. 운영체제의 다른 API 키와 섞이지 않게 합니다.
-    return str(dotenv_values(ENV_PATH).get("OPENAI_API_KEY") or "").strip()
+    # 내 컴퓨터에서는 기존 .env 파일을 사용합니다.
+    local_key = str(
+        dotenv_values(ENV_PATH).get("OPENAI_API_KEY") or ""
+    ).strip()
+
+    if local_key:
+        return local_key
+
+    # 배포 서버에서는 Streamlit에 안전하게 저장한 키를 사용합니다.
+    try:
+        return str(st.secrets["OPENAI_API_KEY"]).strip()
+    except (FileNotFoundError, KeyError):
+        return ""
 
 
 def get_data_files() -> list[Path]:
